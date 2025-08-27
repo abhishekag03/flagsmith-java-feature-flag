@@ -1,28 +1,30 @@
 package org.flagsmith;
 
+import com.flagsmith.FlagsmithClient;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import com.google.gson.Gson;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+
 import java.nio.charset.StandardCharsets;
+import java.util.Properties;
 
 
 public class Main {
     static List<Book> books = new ArrayList<>();
+    static FlagsmithClient fsClient;
 
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/books", new MyHandler());
         server.setExecutor(null); // creates a default executor
         populateDummyData();
+        fsClient = getFlagsmithClient();
         server.start();
     }
 
@@ -67,6 +69,30 @@ public class Main {
             Gson gson = new Gson();
             return gson.fromJson(query, Book.class);
         }
+    }
+
+    private static String readFlagsmithApiKey() {
+        Properties prop = new Properties();
+        String propFileName = "config.properties";  // if this does not work, use propFileName = "resources/config.properties"
+        InputStream inputStream = ClassLoader.getSystemResourceAsStream(propFileName);
+        if (inputStream != null) {
+            try {
+                prop.load(inputStream);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            throw new RuntimeException("config file input stream is null");
+        }
+        return prop.getProperty("apiKey");
+    }
+
+    private static FlagsmithClient getFlagsmithClient() {
+        String apiKey = readFlagsmithApiKey();
+        return FlagsmithClient
+                .newBuilder()
+                .setApiKey(apiKey)
+                .build();
     }
 
 }
