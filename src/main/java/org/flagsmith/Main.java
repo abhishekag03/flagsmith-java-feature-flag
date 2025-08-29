@@ -1,6 +1,8 @@
 package org.flagsmith;
 
+
 import com.flagsmith.FlagsmithClient;
+import com.flagsmith.config.FlagsmithConfig;
 import com.flagsmith.models.Flags;
 import com.flagsmith.exceptions.FlagsmithClientError;
 import com.sun.net.httpserver.HttpExchange;
@@ -115,9 +117,15 @@ public class Main {
 
     private static FlagsmithClient getFlagsmithClient() {
         String apiKey = readFlagsmithApiKey();
+        FlagsmithConfig flagsmithConfig = FlagsmithConfig
+                .newBuilder()
+                .withLocalEvaluation(true)
+                .withEnvironmentRefreshIntervalSeconds(60)
+                .build();
         return FlagsmithClient
                 .newBuilder()
                 .setApiKey(apiKey)
+                .withConfiguration(flagsmithConfig)
                 .build();
     }
 
