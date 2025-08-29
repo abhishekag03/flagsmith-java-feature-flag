@@ -1,6 +1,8 @@
 package org.flagsmith;
 
+
 import com.flagsmith.FlagsmithClient;
+import com.flagsmith.config.FlagsmithConfig;
 import com.flagsmith.models.Flags;
 import com.flagsmith.exceptions.FlagsmithClientError;
 import com.sun.net.httpserver.HttpExchange;
@@ -20,8 +22,10 @@ import java.util.Properties;
 public class Main {
     static List<Book> books = new ArrayList<>();
     static FlagsmithClient fsClient;
+    static final String ADD_BOOKS_FEATURE_FLAG_NAME = "add_books";
 
     public static void main(String[] args) throws Exception {
+        System.out.println("Starting FlagsMith...");
         HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/books", new MyHandler());
         server.setExecutor(null); // creates a default executor
@@ -56,9 +60,11 @@ public class Main {
 
         private void handlePostBooksRequest(HttpExchange t) throws IOException {
             boolean allowAddBooks;
+            int minPrice;
             try {
                 Flags flags = fsClient.getEnvironmentFlags(); // get all environment flags
-                allowAddBooks = flags.isFeatureEnabled("add_books"); // check value of add_books env flag
+                allowAddBooks = flags.isFeatureEnabled(ADD_BOOKS_FEATURE_FLAG_NAME); // check value of add_books env flag
+                minPrice = (int) flags.getFeatureValue(ADD_BOOKS_FEATURE_FLAG_NAME); // get minimum price of book that can be added
             } catch (FlagsmithClientError e) {
                 throw new RuntimeException(e);
             }
@@ -66,9 +72,15 @@ public class Main {
             int respCode;
             if (allowAddBooks) { // allow adding books only if feature flag returns True
                 Book book = getBookFromRequest(t); // parse book data from request
-                books.add(book);
-                resp = "book added successfully";
-                respCode = 201;
+                if (Integer.parseInt(book.price) >= minPrice) {
+                    books.add(book);
+                    resp = "book added successfully";
+                    respCode = 201;
+                } else {
+                    resp = "book value less than minimum price allowed";
+                    respCode = 422;
+                }
+
             } else {
                 resp = "method not allowed. Please come back later";
                 respCode = 405;
@@ -105,9 +117,15 @@ public class Main {
 
     private static FlagsmithClient getFlagsmithClient() {
         String apiKey = readFlagsmithApiKey();
+        FlagsmithConfig flagsmithConfig = FlagsmithConfig
+                .newBuilder()
+                .withLocalEvaluation(true)
+                .withEnvironmentRefreshIntervalSeconds(60)
+                .build();
         return FlagsmithClient
                 .newBuilder()
                 .setApiKey(apiKey)
+                .withConfiguration(flagsmithConfig)
                 .build();
     }
 
